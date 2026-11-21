@@ -168,6 +168,18 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
 .dayrow .rowmain { background: none; border: 0; text-align: left; padding: 13px 14px; min-width: 0; }
 .dayrow .x { background: none; border: 0; color: var(--muted); font-size: 22px; width: 48px; height: 48px; }
 .addday { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 4px; }
+.pic { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.pic svg.fig { width: 100%; height: auto; max-height: 220px; display: block; }
+.pic img { width: 100%; max-height: 300px; object-fit: contain; border-radius: 10px; display: block; background: var(--bg); }
+.fig .b { fill: none; stroke: var(--fg); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.fig .h { fill: var(--fg); }
+.fig .k { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; }
+.fig .kf { fill: var(--accent); }
+.fig .m { fill: none; stroke: var(--muted); stroke-width: 4; stroke-linecap: round; }
+.fig .fl { stroke: var(--line); stroke-width: 2; }
+.pic .tip { margin: 0; font-size: 14px; }
+.pic .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.pic .acts .btn { flex: 1 1 auto; min-height: 40px; padding: 8px 12px; font-size: 14px; }
 .backup textarea { width: 100%; min-height: 110px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
 .backup .acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .backup summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 6px 0; }
@@ -214,6 +226,7 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
     <button class="btn primary block" type="submit">Crear ejercicio</button>
   </form>
 </div>
+<input type="file" id="photoIn" accept="image/*" hidden>
 <div id="toast" hidden role="status"><span id="toastText"></span><button type="button" id="toastBtn" hidden>Deshacer</button></div>
 
 <script>
@@ -425,6 +438,7 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
 
     var html = '<button class="back" type="button" data-act="home">‹ Ejercicios</button>' +
       '<div class="title-block"><span class="chip">' + esc(e.group || "Otro") + (e.bar ? " · barra 20 kg" : "") + '</span><h1>' + esc(e.name) + '</h1></div>' +
+      pictureHTML(e) +
       '<div class="stats">' +
       '<div class="stat"><b>' + (l ? fmt(l.w) : "—") + '</b><span>Último (kg)</span></div>' +
       '<div class="stat"><b>' + (sets.length ? fmt(best(e)) : "—") + '</b><span>Récord (kg)</span></div>' +
@@ -457,6 +471,70 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
       '<button class="btn danger" type="button" data-act="delex">' + (armedDelete ? "Toca otra vez para eliminar «" + esc(e.name) + "»" : "Eliminar ejercicio") + '</button>';
     $("detailScreen").innerHTML = html;
     if (armedDelete) $("detailScreen").querySelector('[data-act="delex"]').classList.add("armed");
+  }
+
+  // ---------- dibujos de los ejercicios (vista simple, sin internet) ----------
+  function P(pts, c) { return '<polyline class="' + (c || "b") + '" points="' + pts + '"></polyline>'; }
+  function H(x, y) { return '<circle class="h" cx="' + x + '" cy="' + y + '" r="9"></circle>'; }
+  function D(x, y, r) { return '<circle class="kf" cx="' + x + '" cy="' + y + '" r="' + (r || 14) + '"></circle>'; }
+  function DB(x, y) { return '<rect class="kf" x="' + (x - 9) + '" y="' + (y - 5) + '" width="18" height="10" rx="3"></rect>'; }
+  var FIGS = {
+    banca: { tip: "Túmbate, baja la barra al pecho controlando y empuja hacia arriba. Pies firmes en el suelo.",
+      d: P("35,104 155,104", "m") + P("45,104 45,128", "m") + P("145,104 145,128", "m") + H(48, 88) + P("58,92 118,94") + P("118,94 142,82 150,126") + P("72,92 74,66 74,42") + D(74, 38) },
+    inclinado: { tip: "Banco inclinado unos 30°. Baja las mancuernas a los lados del pecho y súbelas juntándolas arriba.",
+      d: P("62,118 118,58", "m") + P("80,118 80,128", "m") + H(120, 46) + P("112,58 74,104") + P("74,104 48,98 44,126") + P("110,62 122,46 118,26") + DB(118, 22) },
+    dominadas: { tip: "Cuelga con los brazos estirados y sube hasta que la barbilla pase la barra. Baja despacio.",
+      d: P("40,16 160,16", "k") + H(100, 40) + P("84,16 74,40 88,56") + P("116,16 126,40 112,56") + P("88,56 112,56") + P("100,56 100,98") + P("100,98 92,118 100,132") + P("100,98 110,116 116,130") },
+    remo: { tip: "Inclina el tronco con la espalda recta y tira de la barra hacia el ombligo, juntando escápulas.",
+      d: H(136, 48) + P("78,82 126,58") + P("78,82 90,104 80,128") + P("120,62 110,84 122,98") + D(122, 104) },
+    jalon: { tip: "Sentado, tira de la barra hasta la parte alta del pecho con los codos hacia abajo.",
+      d: P("100,8 100,70", "m") + P("54,72 146,72", "k") + H(100, 50) + P("62,72 70,94 88,66") + P("138,72 130,94 112,66") + P("100,62 100,106") + P("100,106 86,108 82,130") + P("100,106 114,108 118,130") + P("70,110 130,110", "m") },
+    sentadilla: { tip: "Barra sobre la espalda. Baja la cadera atrás y abajo hasta que el muslo quede paralelo. Rodillas hacia fuera.",
+      d: D(90, 52) + H(104, 44) + P("70,88 96,58") + P("70,88 112,96 100,128") + P("94,60 86,72 92,54") },
+    muerto: { tip: "Barra pegada a las piernas, espalda recta. Empuja el suelo con los pies y levántate estirando cadera y rodillas.",
+      d: H(126, 50) + P("84,80 116,60") + P("84,80 106,100 96,128") + P("114,62 114,108") + D(114, 114) + P("40,128 160,128", "fl") },
+    prensa: { tip: "Espalda pegada al respaldo. Baja la plataforma hasta 90° de rodilla y empuja sin bloquear las rodillas.",
+      d: P("38,116 66,68", "m") + P("118,126 176,40", "m") + H(56, 58) + P("62,72 74,108") + P("74,108 104,78 132,92") + P("120,80 146,102", "k") },
+    militar: { tip: "De pie, abdomen firme. Empuja la barra desde los hombros hasta estirar los brazos sobre la cabeza.",
+      d: P("42,18 158,18", "k") + D(44, 18, 10) + D(156, 18, 10) + H(100, 44) + P("78,18 72,40 88,58") + P("122,18 128,40 112,58") + P("88,58 112,58") + P("100,58 100,98") + P("100,98 92,130") + P("100,98 108,130") },
+    laterales: { tip: "Sube las mancuernas hacia los lados hasta la altura de los hombros, codos un poco doblados.",
+      d: H(100, 40) + P("56,62 88,56 112,56 144,62") + DB(52, 62) + DB(148, 62) + P("100,56 100,98") + P("100,98 92,130") + P("100,98 108,130") },
+    curl: { tip: "Codos pegados al cuerpo. Sube la mancuerna doblando el codo y baja despacio sin balancearte.",
+      d: H(100, 30) + P("100,42 100,94") + P("100,94 94,130") + P("100,94 106,130") + P("100,48 102,78 124,60") + DB(128, 56) },
+    triceps: { tip: "Codos quietos a los lados. Empuja la cuerda hacia abajo hasta estirar los brazos.",
+      d: P("150,8 158,8 158,132 150,132", "m") + P("152,20 124,98", "k") + H(100, 30) + P("100,42 98,94") + P("98,94 92,130") + P("98,94 106,130") + P("100,48 104,76 124,98") },
+    generico: { tip: "Añade una foto tuya o de la máquina para recordar cómo se hace.",
+      d: P("70,70 130,70", "k") + '<rect class="kf" x="52" y="52" width="14" height="36" rx="3"></rect><rect class="kf" x="134" y="52" width="14" height="36" rx="3"></rect>' }
+  };
+  var FIG_KEYS = [["inclinad", "inclinado"], ["banca", "banca"], ["dominad", "dominadas"], ["remo", "remo"], ["jal", "jalon"], ["sentadill", "sentadilla"], ["squat", "sentadilla"],
+    ["muerto", "muerto"], ["prensa", "prensa"], ["militar", "militar"], ["hombro", "militar"], ["lateral", "laterales"], ["curl", "curl"], ["bíceps", "curl"], ["biceps", "curl"], ["tríceps", "triceps"], ["triceps", "triceps"]];
+  function figFor(e) {
+    var n = e.name.toLowerCase();
+    for (var i = 0; i < FIG_KEYS.length; i++) if (n.indexOf(FIG_KEYS[i][0]) >= 0) return FIGS[FIG_KEYS[i][1]];
+    return FIGS.generico;
+  }
+  function pictureHTML(e) {
+    var f = figFor(e);
+    var img = e.photo ? '<img src="' + e.photo + '" alt="Foto de ' + esc(e.name) + '">' :
+      '<svg class="fig" viewBox="0 0 200 140" role="img" aria-label="Dibujo de ' + esc(e.name) + '"><line class="fl" x1="20" y1="132" x2="180" y2="132"></line>' + f.d + "</svg>";
+    return '<div class="pic">' + img + '<p class="tip muted">' + esc(f.tip) + '</p><div class="acts">' +
+      '<button class="btn" type="button" data-act="photo">' + (e.photo ? "Cambiar foto" : "Poner mi foto") + "</button>" +
+      (e.photo ? '<button class="btn ghost" type="button" data-act="nophoto">Volver al dibujo</button>' : "") + "</div></div>";
+  }
+  function setPhoto(file) {
+    if (!file || !current) return;
+    var id = current, url = URL.createObjectURL(file), im = new Image();
+    im.onload = function () {
+      var k = Math.min(1, 480 / Math.max(im.width, im.height)), c = document.createElement("canvas");
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      if (!ex[id]) return;
+      ex[id].photo = c.toDataURL("image/jpeg", 0.7);
+      saveCache(); if (current === id) renderDetail();
+    };
+    im.onerror = function () { toast("No se pudo abrir esa imagen."); };
+    im.src = url;
   }
 
   function openExercise(id) { current = id; armedDelete = false; show("detail"); renderDetail(); }
@@ -500,6 +578,8 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
     }
     var act = t.dataset.act;
     if (act === "home") return goHome();
+    if (act === "photo") { $("photoIn").value = ""; $("photoIn").click(); return; }
+    if (act === "nophoto") { delete ex[current].photo; saveCache(); renderDetail(); return; }
     if (act === "new") { show("add"); $("newName").value = ""; $("newBar").checked = false; $("newName").focus(); return; }
     if (act === "starter") {
       var base = Date.now();
@@ -603,6 +683,7 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
     toast("Copia restaurada: " + Object.keys(ex).length + " ejercicios");
   });
 
+  $("photoIn").addEventListener("change", function () { setPhoto(this.files && this.files[0]); });
   loadCache();
   loadRoutine();
   setMode();
