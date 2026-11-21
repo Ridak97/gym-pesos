@@ -891,7 +891,8 @@ svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
   $("photoIn").addEventListener("change", function () { setPhoto(this.files && this.files[0]); });
   loadCache();
   loadRoutine();
-  if (!Object.keys(ex).length && !Object.keys(routine).length) { try { if (!localStorage.getItem("cuaderno-pesos-plan-cargado")) { loadPlan(); localStorage.setItem("cuaderno-pesos-plan-cargado", "1"); selDay = new Date().getDay(); if (!(routine[selDay] || []).length) selDay = 1; } } catch (e) {} }
+  var hasDays = Object.keys(routine).some(function (k) { return (routine[k] || []).length; });
+  if (!hasDays) { try { if (!localStorage.getItem("cuaderno-pesos-plan-cargado")) { loadPlan(); localStorage.setItem("cuaderno-pesos-plan-cargado", "1"); selDay = new Date().getDay(); if (!(routine[selDay] || []).length) selDay = 1; } } catch (e) {} }
   setMode();
   renderList();
   requestPersistence();
