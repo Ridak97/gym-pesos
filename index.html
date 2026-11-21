@@ -178,6 +178,16 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
 .fig .m { fill: none; stroke: var(--muted); stroke-width: 4; stroke-linecap: round; }
 .fig .fl { stroke: var(--line); stroke-width: 2; }
 .pic .tip { margin: 0; font-size: 14px; }
+.picgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: center; }
+.picgrid > div { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
+.mus .sil { fill: var(--line); }
+.mus .mo { fill: var(--line); stroke: var(--bg); stroke-width: 1; }
+.mus .mp { fill: var(--accent); }
+.mus .ms { fill: var(--accent); fill-opacity: .4; }
+.mus .ax { fill: var(--muted); font-size: 9px; font-family: var(--font-body); }
+.editrow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px; }
+.editrow input, .editrow select { min-height: 42px; padding: 8px 10px; }
 .pic .acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .pic .acts .btn { flex: 1 1 auto; min-height: 40px; padding: 8px 12px; font-size: 14px; }
 .backup textarea { width: 100%; min-height: 110px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
@@ -198,7 +208,8 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
     <div id="listBody" style="display:flex;flex-direction:column;gap:14px"></div>
     <button class="btn primary block" id="newBtn" type="button">+ Nuevo ejercicio</button>
     <details class="card backup" id="backup">
-      <summary>Copia de seguridad</summary>
+      <summary>Copia de seguridad y plan</summary>
+      <button class="btn danger" type="button" data-act="loadplan">Volver a cargar mi plan de 5 días</button>
       <p class="muted" style="margin:0">Tus datos solo viven en este iPhone. De vez en cuando, copia este texto y guárdalo en Notas. Para recuperarlo, pégalo aquí y pulsa Restaurar.</p>
       <label class="label" for="backupText">Datos</label>
       <textarea id="backupText" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
@@ -243,6 +254,52 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
   var PLATES = [[25, "--plate25", 52], [20, "--plate20", 52], [15, "--plate15", 46], [10, "--plate10", 40], [5, "--plate5", 32], [2.5, "--plate2", 26], [1.25, "--plate1", 22]];
   var CACHE_KEY = "cuaderno-pesos-v1";
   var ROUTINE_KEY = "cuaderno-pesos-rutina-v1";
+  // Plan del usuario: [nombre, grupo, series, reps, dibujo, músculos principales, secundarios]
+  var PLAN = [
+    [1, [["Press de pecho en máquina", "Pecho", 3, "6–10", "banca", ["pecho"], ["deltFront", "triceps"]],
+         ["Press inclinado con mancuernas", "Pecho", 2, "8–12", "inclinado", ["pecho"], ["deltFront", "triceps"]],
+         ["Elevaciones laterales en polea", "Hombros", 2, "12–20", "laterales", ["deltLat"], ["espaldaAlta"]],
+         ["Extensión de tríceps con cuerda", "Brazos", 2, "10–15", "triceps", ["triceps"], []]]],
+    [2, [["Jalón al pecho con agarre neutro", "Espalda", 3, "8–12", "jalon", ["dorsal"], ["biceps", "espaldaAlta"]],
+         ["Remo con pecho apoyado", "Espalda", 3, "8–12", "remo", ["espaldaAlta", "dorsal"], ["deltPost", "biceps"]],
+         ["Pájaros en máquina", "Hombros", 2, "12–20", "laterales", ["deltPost"], ["espaldaAlta"]],
+         ["Curl de bíceps inclinado", "Brazos", 2, "8–12", "curl", ["biceps"], ["antebrazo"]],
+         ["Crunch abdominal en polea", "Core", 3, "10–15", "crunch", ["abs"], []],
+         ["Elevaciones de rodillas en silla romana", "Core", 2, "10–15", "rodillas", ["abs"], ["cuads"]]]],
+    [3, [["Elevaciones laterales en máquina", "Hombros", 2, "15–20", "laterales", ["deltLat"], ["espaldaAlta"]],
+         ["Curl predicador en máquina", "Brazos", 2, "10–15", "curl", ["biceps"], ["antebrazo"]],
+         ["Extensión de tríceps sobre la cabeza en polea", "Brazos", 2, "10–15", "triceps", ["triceps"], []],
+         ["Rotación externa de hombro en polea", "Hombros", 2, "12–20", "generico", ["deltPost"], ["espaldaAlta"]]]],
+    [4, [["Press inclinado en máquina", "Pecho", 3, "6–10", "inclinado", ["pecho"], ["deltFront", "triceps"]],
+         ["Press horizontal con mancuernas", "Pecho", 2, "8–12", "banca", ["pecho"], ["deltFront", "triceps"]],
+         ["Aperturas de pecho en polea", "Pecho", 2, "12–15", "laterales", ["pecho"], ["deltFront"]],
+         ["Elevaciones laterales en máquina", "Hombros", 2, "12–20", "laterales", ["deltLat"], ["espaldaAlta"]],
+         ["Extensión de tríceps con cuerda", "Brazos", 2, "10–15", "triceps", ["triceps"], []]]],
+    [5, [["Dominadas asistidas o jalón al pecho", "Espalda", 3, "6–10", "dominadas", ["dorsal"], ["biceps", "espaldaAlta"]],
+         ["Remo sentado en polea", "Espalda", 3, "8–12", "remo", ["dorsal", "espaldaAlta"], ["biceps", "deltPost"]],
+         ["Pullover en polea", "Espalda", 1, "12–15", "generico", ["dorsal"], ["pecho", "triceps"]],
+         ["Pájaros en máquina", "Hombros", 2, "12–20", "laterales", ["deltPost"], ["espaldaAlta"]],
+         ["Curl martillo con mancuernas", "Brazos", 2, "10–15", "curl", ["biceps"], ["antebrazo"]],
+         ["Crunch abdominal en máquina", "Core", 3, "10–15", "crunch", ["abs"], []],
+         ["Crunch inverso en banco", "Core", 2, "12–15", "rodillas", ["abs"], []]]]
+  ];
+  function loadPlan() {
+    var byName = {};
+    Object.keys(ex).forEach(function (id) { byName[ex[id].name.toLowerCase()] = id; });
+    var i = 0;
+    PLAN.forEach(function (day) {
+      routine[day[0]] = day[1].map(function (it) {
+        var id = byName[it[0].toLowerCase()];
+        if (!id) {
+          id = newId() + (i++);
+          ex[id] = { name: it[0], group: it[1], bar: false, sets: [], created: Date.now(), plan: { s: it[2], r: it[3] }, fig: it[4], mus: { p: it[5], s: it[6] } };
+          byName[it[0].toLowerCase()] = id;
+        }
+        return id;
+      });
+    });
+    saveCache(); saveRoutine();
+  }
   var DAYS = [[1, "L", "Lunes"], [2, "M", "Martes"], [3, "X", "Miércoles"], [4, "J", "Jueves"], [5, "V", "Viernes"], [6, "S", "Sábado"], [0, "D", "Domingo"]];
   var routine = {};     // día (0-6) -> [ids]; el objetivo vive en el ejercicio, así es el mismo en todos los días
   var selDay = "all";
@@ -352,7 +409,7 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
     if (!ids.length) {
       body.innerHTML = '<div class="empty"><h2>Aún no tienes ejercicios</h2>' +
         '<p>Empieza con una lista básica de gimnasio o crea los tuyos. Cada vez que entrenes, apunta el peso y las repeticiones.</p>' +
-        '<div class="acts"><button class="btn primary" type="button" data-act="starter">Añadir lista básica (12)</button>' +
+        '<div class="acts"><button class="btn primary" type="button" data-act="loadplan">Cargar mi plan de 5 días</button>' +
         '<button class="btn" type="button" data-act="new">Crear mi propio ejercicio</button></div></div>';
       $("newBtn").hidden = true; $("search").hidden = true;
       return;
@@ -424,7 +481,7 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
     var sets = e.sets || [];
     var l = lastSet(e);
     var p = e.plan || {};
-    var d = draft[current] || { w: p.w != null ? p.w : (l ? l.w : (e.bar ? 20 : 10)), r: p.r || (l ? l.r : 8) };
+    var d = draft[current] || { w: p.w != null ? p.w : (l ? l.w : (e.bar ? 20 : 10)), r: parseInt(p.r, 10) || (l ? l.r : 8) };
     var onDays = daysOf(current);
     draft[current] = d;
     var todayK = dayKey(Date.now());
@@ -445,9 +502,11 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
       '<div class="stat"><b>' + (sets.length ? fmt(Math.round(best1rm(e))) : "—") + '</b><span>1RM estimado</span></div></div>' +
       '<div class="card plan"><h3>Objetivo</h3>' +
       '<p class="muted" style="margin:0">Es el mismo en todos los días que tienen este ejercicio. Si lo cambias aquí, cambia en todos.</p>' +
+      '<div class="editrow"><label><span class="label">Nombre</span><input type="text" id="pN" maxlength="60" value="' + esc(e.name) + '"></label>' +
+      '<label><span class="label">Grupo</span><select id="pG">' + GROUPS.map(function (g) { return '<option' + (g === (e.group || "Otro") ? " selected" : "") + ">" + g + "</option>"; }).join("") + "</select></label></div>" +
       '<div class="planrow">' +
       '<label><span class="label">Series</span><input id="pS" inputmode="numeric" value="' + (p.s || "") + '" placeholder="4"></label>' +
-      '<label><span class="label">Reps</span><input id="pR" inputmode="numeric" value="' + (p.r || "") + '" placeholder="8"></label>' +
+      '<label><span class="label">Reps</span><input id="pR" inputmode="text" value="' + esc(p.r || "") + '" placeholder="8–12"></label>' +
       '<label><span class="label">Peso kg</span><input id="pW" inputmode="decimal" value="' + (p.w != null ? fmt(p.w) : "") + '" placeholder="60"></label></div>' +
       '<span class="label">Días</span><div class="daypick">' + DAYS.map(function (dd) {
         var on = onDays.some(function (o) { return o[0] === dd[0]; });
@@ -503,21 +562,91 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
       d: H(100, 30) + P("100,42 100,94") + P("100,94 94,130") + P("100,94 106,130") + P("100,48 102,78 124,60") + DB(128, 56) },
     triceps: { tip: "Codos quietos a los lados. Empuja la cuerda hacia abajo hasta estirar los brazos.",
       d: P("150,8 158,8 158,132 150,132", "m") + P("152,20 124,98", "k") + H(100, 30) + P("100,42 98,94") + P("98,94 92,130") + P("98,94 106,130") + P("100,48 104,76 124,98") },
+    crunch: { tip: "Enrolla el tronco llevando el pecho hacia la cadera. Mueve el abdomen, no los brazos.",
+      d: P("150,8 150,40", "m") + P("150,40 128,86", "k") + P("58,128 86,128 92,100") + P("92,100 122,96") + H(132, 102) + P("118,96 126,86 130,92") },
+    rodillas: { tip: "Antebrazos apoyados y espalda pegada. Sube las rodillas hacia el pecho sin balancearte y baja despacio.",
+      d: P("66,20 66,132", "m") + P("66,52 112,52", "m") + H(80, 20) + P("80,32 80,74") + P("80,36 86,50 108,48") + P("80,74 110,62 114,92") },
     generico: { tip: "Añade una foto tuya o de la máquina para recordar cómo se hace.",
       d: P("70,70 130,70", "k") + '<rect class="kf" x="52" y="52" width="14" height="36" rx="3"></rect><rect class="kf" x="134" y="52" width="14" height="36" rx="3"></rect>' }
   };
-  var FIG_KEYS = [["inclinad", "inclinado"], ["banca", "banca"], ["dominad", "dominadas"], ["remo", "remo"], ["jal", "jalon"], ["sentadill", "sentadilla"], ["squat", "sentadilla"],
+  var FIG_KEYS = [["curl", "curl"], ["crunch", "crunch"], ["abdominal", "crunch"], ["rodillas", "rodillas"], ["pájaro", "laterales"], ["apertura", "laterales"],
+    ["press de pecho", "banca"], ["press horizontal", "banca"], ["inclinad", "inclinado"], ["banca", "banca"], ["dominad", "dominadas"], ["remo", "remo"], ["jal", "jalon"], ["sentadill", "sentadilla"], ["squat", "sentadilla"],
     ["muerto", "muerto"], ["prensa", "prensa"], ["militar", "militar"], ["hombro", "militar"], ["lateral", "laterales"], ["curl", "curl"], ["bíceps", "curl"], ["biceps", "curl"], ["tríceps", "triceps"], ["triceps", "triceps"]];
+  // ---------- mapa de músculos (frente y espalda) ----------
+  var MUS_NAME = { pecho: "Pecho", deltFront: "Hombro frontal", deltLat: "Hombro lateral", deltPost: "Hombro posterior", biceps: "Bíceps", triceps: "Tríceps",
+    antebrazo: "Antebrazo", abs: "Abdomen", dorsal: "Dorsal", espaldaAlta: "Espalda alta", cuads: "Cuádriceps", gluteos: "Glúteos", isquios: "Isquiotibiales", gemelos: "Gemelos" };
+  var MUS_KEYS = [
+    [["pájaro", "pajaro", "posterior", "rotación externa", "face pull"], ["deltPost"], ["espaldaAlta"]],
+    [["lateral"], ["deltLat"], ["espaldaAlta"]],
+    [["apertura", "contractor", "cruce"], ["pecho"], ["deltFront"]],
+    [["pullover"], ["dorsal"], ["pecho", "triceps"]],
+    [["jalón", "jalon", "dominada"], ["dorsal"], ["biceps", "espaldaAlta"]],
+    [["remo"], ["dorsal", "espaldaAlta"], ["biceps", "deltPost"]],
+    [["martillo"], ["biceps"], ["antebrazo"]],
+    [["curl"], ["biceps"], ["antebrazo"]],
+    [["tríceps", "triceps", "fondos"], ["triceps"], []],
+    [["crunch", "abdominal", "rodillas", "plancha"], ["abs"], []],
+    [["pecho", "banca", "press horizontal", "press inclinado"], ["pecho"], ["deltFront", "triceps"]],
+    [["militar", "hombro"], ["deltFront", "deltLat"], ["triceps"]],
+    [["peso muerto", "femoral", "isquio"], ["isquios", "gluteos"], ["espaldaAlta"]],
+    [["sentadilla", "prensa", "cuádriceps", "zancada"], ["cuads", "gluteos"], ["isquios"]],
+    [["glúteo", "gluteo", "hip thrust"], ["gluteos"], ["isquios"]],
+    [["gemelo"], ["gemelos"], []]
+  ];
+  function musFor(e) {
+    if (e.mus) return e.mus;
+    var n = e.name.toLowerCase();
+    for (var i = 0; i < MUS_KEYS.length; i++) for (var j = 0; j < MUS_KEYS[i][0].length; j++) if (n.indexOf(MUS_KEYS[i][0][j]) >= 0) return { p: MUS_KEYS[i][1], s: MUS_KEYS[i][2] };
+    return { p: [], s: [] };
+  }
+  function muscleMapHTML(e) {
+    var m = musFor(e);
+    if (!m.p.length) return "";
+    function c(k) { return m.p.indexOf(k) >= 0 ? "mp" : (m.s.indexOf(k) >= 0 ? "ms" : "mo"); }
+    function el(k, x, y, rx, ry) { return '<ellipse class="' + c(k) + '" cx="' + x + '" cy="' + y + '" rx="' + rx + '" ry="' + ry + '"></ellipse>'; }
+    function pair(k, cx, dx, y, rx, ry) { return el(k, cx - dx, y, rx, ry) + el(k, cx + dx, y, rx, ry); }
+    function body(cx) {
+      return '<circle class="sil" cx="' + cx + '" cy="14" r="9"></circle><rect class="sil" x="' + (cx - 18) + '" y="26" width="36" height="56" rx="9"></rect>' +
+        '<rect class="sil" x="' + (cx - 30) + '" y="28" width="10" height="64" rx="5"></rect><rect class="sil" x="' + (cx + 20) + '" y="28" width="10" height="64" rx="5"></rect>' +
+        '<rect class="sil" x="' + (cx - 17) + '" y="78" width="15" height="68" rx="6"></rect><rect class="sil" x="' + (cx + 2) + '" y="78" width="15" height="68" rx="6"></rect>';
+    }
+    var F = 55, B = 165;
+    var front = body(F) + pair("deltFront", F, 21, 33, 6, 6) + pair("deltLat", F, 26, 36, 3.5, 6) + pair("pecho", F, 8.5, 42, 8.5, 7) +
+      pair("biceps", F, 25, 52, 4, 9) + pair("antebrazo", F, 25, 76, 4, 10) + '<rect class="' + c("abs") + '" x="' + (F - 7) + '" y="52" width="14" height="26" rx="4"></rect>' +
+      pair("cuads", F, 9.5, 100, 6, 16) + pair("gemelos", F, 9.5, 128, 4, 9);
+    var back = body(B) + '<polygon class="' + c("espaldaAlta") + '" points="' + B + ',24 ' + (B + 15) + ',34 ' + B + ',54 ' + (B - 15) + ',34"></polygon>' +
+      pair("deltPost", B, 21, 33, 6, 6) + pair("deltLat", B, 26, 36, 3.5, 6) + pair("dorsal", B, 11, 58, 6.5, 13) + pair("triceps", B, 25, 52, 4, 9) +
+      pair("antebrazo", B, 25, 76, 4, 10) + pair("gluteos", B, 8, 86, 8, 7) + pair("isquios", B, 9.5, 106, 6, 12) + pair("gemelos", B, 9.5, 130, 5, 9);
+    var legend = '<p class="tip"><b>Trabaja:</b> ' + m.p.map(function (k) { return MUS_NAME[k]; }).join(", ") +
+      (m.s.length ? ' <span class="muted">· también: ' + m.s.map(function (k) { return MUS_NAME[k]; }).join(", ") + "</span>" : "") + "</p>";
+    return '<svg class="mus" viewBox="0 0 220 152" role="img" aria-label="Músculos que trabaja">' + front + back +
+      '<text class="ax" x="' + F + '" y="151" text-anchor="middle">Frente</text><text class="ax" x="' + B + '" y="151" text-anchor="middle">Espalda</text></svg>' + legend;
+  }
   function figFor(e) {
+    if (e.fig && FIGS[e.fig]) return FIGS[e.fig];
     var n = e.name.toLowerCase();
     for (var i = 0; i < FIG_KEYS.length; i++) if (n.indexOf(FIG_KEYS[i][0]) >= 0) return FIGS[FIG_KEYS[i][1]];
     return FIGS.generico;
   }
+  var TIPS = [
+    ["pájaro", "Pecho apoyado en el respaldo. Abre los brazos hacia atrás en arco, con los codos casi estirados, y junta las escápulas."],
+    ["apertura", "Brazos casi estirados. Junta las manos delante del pecho en arco y vuelve abriendo despacio hasta notar el estiramiento."],
+    ["rotación externa", "Codo pegado al costado y doblado a 90°. Gira el antebrazo hacia fuera sin separar el codo."],
+    ["pullover", "Brazos casi rectos. Baja la barra o cuerda en arco desde arriba hasta los muslos usando la espalda."],
+    ["crunch inverso", "Tumbado, sube las rodillas hacia el pecho levantando un poco la cadera del banco. Baja controlando."],
+    ["predicador", "Brazos apoyados en el atril. Sube sin despegar los codos y baja hasta casi estirar."],
+    ["martillo", "Palmas mirándose entre sí. Sube las mancuernas doblando el codo sin moverlo del costado."],
+    ["sobre la cabeza", "De espaldas a la polea, codos arriba junto a la cabeza. Estira los brazos hacia delante y arriba."],
+    ["inclinado en máquina", "Espalda pegada al respaldo. Empuja hacia arriba y adelante sin despegar los hombros."],
+    ["dominadas asistidas", "Ajusta la ayuda. Sube hasta que la barbilla pase la barra y baja despacio estirando los brazos."]
+  ];
   function pictureHTML(e) {
-    var f = figFor(e);
+    var f = figFor(e), nm = e.name.toLowerCase(), tip = f.tip;
+    for (var ti = 0; ti < TIPS.length; ti++) if (nm.indexOf(TIPS[ti][0]) >= 0) { tip = TIPS[ti][1]; break; }
+    f = { d: f.d, tip: tip };
     var img = e.photo ? '<img src="' + e.photo + '" alt="Foto de ' + esc(e.name) + '">' :
       '<svg class="fig" viewBox="0 0 200 140" role="img" aria-label="Dibujo de ' + esc(e.name) + '"><line class="fl" x1="20" y1="132" x2="180" y2="132"></line>' + f.d + "</svg>";
-    return '<div class="pic">' + img + '<p class="tip muted">' + esc(f.tip) + '</p><div class="acts">' +
+    return '<div class="pic"><div class="picgrid"><div>' + img + '</div><div>' + muscleMapHTML(e) + '</div></div><p class="tip muted">' + esc(f.tip) + '</p><div class="acts">' +
       '<button class="btn" type="button" data-act="photo">' + (e.photo ? "Cambiar foto" : "Poner mi foto") + "</button>" +
       (e.photo ? '<button class="btn ghost" type="button" data-act="nophoto">Volver al dibujo</button>' : "") + "</div></div>";
   }
@@ -578,6 +707,10 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
     }
     var act = t.dataset.act;
     if (act === "home") return goHome();
+    if (act === "loadplan") {
+      if (Object.keys(ex).length && !t.classList.contains("armed")) { t.classList.add("armed"); t.textContent = "Pulsa otra vez: rehace los días L–V"; return; }
+      loadPlan(); selDay = 1; renderList(); toast("Plan cargado: lunes a viernes"); return;
+    }
     if (act === "photo") { $("photoIn").value = ""; $("photoIn").click(); return; }
     if (act === "nophoto") { delete ex[current].photo; saveCache(); renderDetail(); return; }
     if (act === "new") { show("add"); $("newName").value = ""; $("newBar").checked = false; $("newName").focus(); return; }
@@ -625,14 +758,14 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
     if (ev.target.id === "pS" || ev.target.id === "pR" || ev.target.id === "pW") {
       var e = ex[current]; if (!e) return;
       var p = e.plan = e.plan || {};
-      var s = parseInt($("pS").value, 10), r = parseInt($("pR").value, 10), w = num($("pW").value);
+      var s = parseInt($("pS").value, 10), rTxt = $("pR").value.trim().replace(/\s*-\s*/, "–"), r = parseInt(rTxt, 10), w = num($("pW").value);
       if (s >= 1) p.s = s; else delete p.s;
-      if (r >= 1) p.r = r; else delete p.r;
+      if (r >= 1) p.r = rTxt; else delete p.r;
       if (w >= 0) p.w = w; else delete p.w;
       saveCache();
       var d = draft[current];
       if (d) {
-        if (ev.target.id === "pR" && p.r) { d.r = p.r; $("rIn").value = p.r; }
+        if (ev.target.id === "pR" && p.r) { d.r = r; $("rIn").value = r; }
         if (ev.target.id === "pW" && p.w != null) { d.w = p.w; $("wIn").value = fmt(p.w); updatePlates(); }
       }
     }
@@ -683,9 +816,19 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
     toast("Copia restaurada: " + Object.keys(ex).length + " ejercicios");
   });
 
+  document.addEventListener("change", function (ev) {
+    var e = ex[current]; if (!e) return;
+    if (ev.target.id === "pN") {
+      var n = ev.target.value.trim();
+      if (!n) { ev.target.value = e.name; return; }
+      if (n !== e.name) { e.name = n; delete e.fig; delete e.mus; saveCache(); renderDetail(); toast("Nombre cambiado en todos sus días"); }
+    }
+    if (ev.target.id === "pG") { e.group = ev.target.value; saveCache(); renderDetail(); }
+  });
   $("photoIn").addEventListener("change", function () { setPhoto(this.files && this.files[0]); });
   loadCache();
   loadRoutine();
+  if (!Object.keys(ex).length && !Object.keys(routine).length) { try { if (!localStorage.getItem("cuaderno-pesos-plan-cargado")) { loadPlan(); localStorage.setItem("cuaderno-pesos-plan-cargado", "1"); selDay = new Date().getDay(); if (!(routine[selDay] || []).length) selDay = 1; } } catch (e) {} }
   setMode();
   renderList();
   requestPersistence();

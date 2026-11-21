@@ -1,6 +1,6 @@
 // Guarda la app en el iPhone para que funcione sin internet.
 // Cambia VERSION cada vez que actualices index.html.
-const VERSION = "pesos-v3";
+const VERSION = "pesos-v4";
 const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
