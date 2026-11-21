@@ -178,6 +178,8 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
 .fig .m { fill: none; stroke: var(--muted); stroke-width: 4; stroke-linecap: round; }
 .fig .fl { stroke: var(--line); stroke-width: 2; }
 .pic .tip { margin: 0; font-size: 14px; }
+.webbox { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.webbox input { width: 100%; font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px; }
 .picgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: center; }
 .picgrid > div { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
@@ -644,11 +646,17 @@ svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
     var f = figFor(e), nm = e.name.toLowerCase(), tip = f.tip;
     for (var ti = 0; ti < TIPS.length; ti++) if (nm.indexOf(TIPS[ti][0]) >= 0) { tip = TIPS[ti][1]; break; }
     f = { d: f.d, tip: tip };
-    var img = e.photo ? '<img src="' + e.photo + '" alt="Foto de ' + esc(e.name) + '">' :
+    var src = e.photo || e.photoUrl;
+    var img = src ? '<img src="' + esc(src) + '" alt="Foto de ' + esc(e.name) + '" referrerpolicy="no-referrer">' :
       '<svg class="fig" viewBox="0 0 200 140" role="img" aria-label="Dibujo de ' + esc(e.name) + '"><line class="fl" x1="20" y1="132" x2="180" y2="132"></line>' + f.d + "</svg>";
     return '<div class="pic"><div class="picgrid"><div>' + img + '</div><div>' + muscleMapHTML(e) + '</div></div><p class="tip muted">' + esc(f.tip) + '</p><div class="acts">' +
-      '<button class="btn" type="button" data-act="photo">' + (e.photo ? "Cambiar foto" : "Poner mi foto") + "</button>" +
-      (e.photo ? '<button class="btn ghost" type="button" data-act="nophoto">Volver al dibujo</button>' : "") + "</div></div>";
+      '<button class="btn" type="button" data-act="weburl">Foto de internet</button>' +
+      '<button class="btn" type="button" data-act="photo">Foto del móvil</button>' +
+      (src ? '<button class="btn ghost" type="button" data-act="nophoto">Volver al dibujo</button>' : "") + "</div>" +
+      (webOpen ? '<div class="webbox"><label class="label" for="webUrl">Enlace o imagen copiada</label>' +
+        '<input type="url" id="webUrl" placeholder="Pega aquí" autocomplete="off" autocapitalize="off">' +
+        '<p class="tip muted">En Safari o Google Imágenes, mantén pulsada la imagen y elige <b>Copiar</b> o <b>Copiar enlace</b>. Después pégala aquí.</p>' +
+        '<button class="btn primary" type="button" data-act="useurl">Usar esta imagen</button></div>' : "") + "</div>";
   }
   function setPhoto(file) {
     if (!file || !current) return;
@@ -659,11 +667,40 @@ svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
       c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
       if (!ex[id]) return;
-      ex[id].photo = c.toDataURL("image/jpeg", 0.7);
+      var g = c.getContext("2d"); g.globalCompositeOperation = "destination-over"; g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+      ex[id].photo = c.toDataURL("image/jpeg", 0.75);
+      delete ex[id].photoUrl; webOpen = false;
       saveCache(); if (current === id) renderDetail();
+      toast("Foto guardada en el ejercicio");
     };
-    im.onerror = function () { toast("No se pudo abrir esa imagen."); };
+    im.onerror = function () { URL.revokeObjectURL(url); toast("No se pudo abrir esa imagen."); };
     im.src = url;
+  }
+  var webOpen = false;
+  // Foto desde un enlace de internet: si la web lo permite se guarda dentro de la app;
+  // si no, se guarda el enlace y la app guarda una copia para verla sin internet.
+  function usePhotoUrl(raw) {
+    var id = current, u = String(raw || "").trim();
+    if (!/^https?:\/\//i.test(u)) { toast("Pega un enlace que empiece por https://"); return; }
+    toast("Descargando imagen…");
+    fetch(u, { mode: "cors" }).then(function (r) {
+      if (!r.ok) throw new Error("http " + r.status);
+      return r.blob();
+    }).then(function (b) {
+      if (!/^image\//.test(b.type)) throw new Error("no es imagen");
+      setPhoto(b);
+    }).catch(function () {
+      var im = new Image();
+      im.onload = function () {
+        if (!ex[id]) return;
+        ex[id].photoUrl = u; delete ex[id].photo; webOpen = false;
+        try { fetch(u, { mode: "no-cors" }); } catch (e) {}
+        saveCache(); if (current === id) renderDetail();
+        toast("Foto puesta. Ábrela una vez con internet para tenerla sin conexión.");
+      };
+      im.onerror = function () { toast("Ese enlace no es una imagen. Mantén pulsada la imagen y elige «Copiar enlace»… o «Copiar» y pégala."); };
+      im.src = u;
+    });
   }
 
   function openExercise(id) { current = id; armedDelete = false; show("detail"); renderDetail(); }
@@ -712,7 +749,9 @@ svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
       loadPlan(); selDay = 1; renderList(); toast("Plan cargado: lunes a viernes"); return;
     }
     if (act === "photo") { $("photoIn").value = ""; $("photoIn").click(); return; }
-    if (act === "nophoto") { delete ex[current].photo; saveCache(); renderDetail(); return; }
+    if (act === "nophoto") { delete ex[current].photo; delete ex[current].photoUrl; saveCache(); renderDetail(); return; }
+    if (act === "weburl") { webOpen = !webOpen; renderDetail(); if (webOpen) $("webUrl").focus(); return; }
+    if (act === "useurl") { usePhotoUrl($("webUrl").value); return; }
     if (act === "new") { show("add"); $("newName").value = ""; $("newBar").checked = false; $("newName").focus(); return; }
     if (act === "starter") {
       var base = Date.now();
@@ -825,6 +864,17 @@ svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
     }
     if (ev.target.id === "pG") { e.group = ev.target.value; saveCache(); renderDetail(); }
   });
+  // Pegar una imagen copiada (no solo un enlace) en el cuadro de foto de internet
+  document.addEventListener("paste", function (ev) {
+    if (!ev.target || ev.target.id !== "webUrl") return;
+    var cd = ev.clipboardData; if (!cd) return;
+    var files = cd.files && cd.files.length ? cd.files : null, f = null;
+    if (files) { for (var i = 0; i < files.length; i++) if (/^image\//.test(files[i].type)) { f = files[i]; break; } }
+    if (!f && cd.items) { for (var j = 0; j < cd.items.length; j++) if (cd.items[j].kind === "file" && /^image\//.test(cd.items[j].type)) { f = cd.items[j].getAsFile(); break; } }
+    if (f) { ev.preventDefault(); setPhoto(f); return; }
+    var txt = cd.getData("text"); if (txt && /^https?:\/\//i.test(txt.trim())) { ev.preventDefault(); ev.target.value = txt.trim(); usePhotoUrl(txt); }
+  });
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Enter" && ev.target.id === "webUrl") usePhotoUrl(ev.target.value); });
   $("photoIn").addEventListener("change", function () { setPhoto(this.files && this.files[0]); });
   loadCache();
   loadRoutine();
