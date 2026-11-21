@@ -179,6 +179,7 @@ form.screen .field { display: flex; flex-direction: column; gap: 6px; }
 .fig .fl { stroke: var(--line); stroke-width: 2; }
 .pic .tip { margin: 0; font-size: 14px; }
 .webbox { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.pastezone { min-height: 90px; border: 2px dashed var(--accent); border-radius: 12px; padding: 14px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: 15px; -webkit-user-select: text; user-select: text; }
 .webbox input { width: 100%; font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px; }
 .picgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: center; }
 .picgrid > div { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -650,13 +651,11 @@ svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
     var img = src ? '<img src="' + esc(src) + '" alt="Foto de ' + esc(e.name) + '" referrerpolicy="no-referrer">' :
       '<svg class="fig" viewBox="0 0 200 140" role="img" aria-label="Dibujo de ' + esc(e.name) + '"><line class="fl" x1="20" y1="132" x2="180" y2="132"></line>' + f.d + "</svg>";
     return '<div class="pic"><div class="picgrid"><div>' + img + '</div><div>' + muscleMapHTML(e) + '</div></div><p class="tip muted">' + esc(f.tip) + '</p><div class="acts">' +
-      '<button class="btn" type="button" data-act="weburl">Foto de internet</button>' +
-      '<button class="btn" type="button" data-act="photo">Foto del móvil</button>' +
+      '<button class="btn primary" type="button" data-act="pasteimg">Pegar imagen copiada</button>' +
       (src ? '<button class="btn ghost" type="button" data-act="nophoto">Volver al dibujo</button>' : "") + "</div>" +
-      (webOpen ? '<div class="webbox"><label class="label" for="webUrl">Enlace o imagen copiada</label>' +
-        '<input type="url" id="webUrl" placeholder="Pega aquí" autocomplete="off" autocapitalize="off">' +
-        '<p class="tip muted">En Safari o Google Imágenes, mantén pulsada la imagen y elige <b>Copiar</b> o <b>Copiar enlace</b>. Después pégala aquí.</p>' +
-        '<button class="btn primary" type="button" data-act="useurl">Usar esta imagen</button></div>' : "") + "</div>";
+      '<p class="tip muted">En Safari o Google Imágenes, mantén pulsada la imagen, elige <b>Copiar</b> y vuelve aquí a pegarla. No se guarda en tu galería.</p>' +
+      (webOpen ? '<div class="webbox"><div id="webUrl" class="pastezone" contenteditable="true" role="textbox" aria-label="Zona para pegar la imagen">Mantén pulsado aquí y elige <b>Pegar</b></div></div>' : "") +
+      '<button class="btn ghost" type="button" data-act="photo" style="align-self:flex-start;font-size:13px;min-height:34px">O elegir de Fotos o Archivos</button></div>';
   }
   function setPhoto(file) {
     if (!file || !current) return;
@@ -750,8 +749,19 @@ svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
     }
     if (act === "photo") { $("photoIn").value = ""; $("photoIn").click(); return; }
     if (act === "nophoto") { delete ex[current].photo; delete ex[current].photoUrl; saveCache(); renderDetail(); return; }
-    if (act === "weburl") { webOpen = !webOpen; renderDetail(); if (webOpen) $("webUrl").focus(); return; }
-    if (act === "useurl") { usePhotoUrl($("webUrl").value); return; }
+    if (act === "pasteimg") {
+      var openZone = function () { webOpen = true; renderDetail(); var z = $("webUrl"); if (z) z.focus(); };
+      if (navigator.clipboard && navigator.clipboard.read) {
+        navigator.clipboard.read().then(function (items) {
+          for (var i = 0; i < items.length; i++) {
+            var ty = items[i].types.filter(function (x) { return /^image\//.test(x); })[0];
+            if (ty) return items[i].getType(ty).then(setPhoto);
+          }
+          toast("No hay ninguna imagen copiada. Copia una en Safari primero.");
+        }).catch(openZone);
+      } else openZone();
+      return;
+    }
     if (act === "new") { show("add"); $("newName").value = ""; $("newBar").checked = false; $("newName").focus(); return; }
     if (act === "starter") {
       var base = Date.now();
@@ -866,15 +876,18 @@ svg.mus { width: 100%; height: auto; max-height: 220px; display: block; }
   });
   // Pegar una imagen copiada (no solo un enlace) en el cuadro de foto de internet
   document.addEventListener("paste", function (ev) {
-    if (!ev.target || ev.target.id !== "webUrl") return;
+    if (!ev.target || !ev.target.closest || !ev.target.closest("#webUrl")) return;
     var cd = ev.clipboardData; if (!cd) return;
     var files = cd.files && cd.files.length ? cd.files : null, f = null;
     if (files) { for (var i = 0; i < files.length; i++) if (/^image\//.test(files[i].type)) { f = files[i]; break; } }
     if (!f && cd.items) { for (var j = 0; j < cd.items.length; j++) if (cd.items[j].kind === "file" && /^image\//.test(cd.items[j].type)) { f = cd.items[j].getAsFile(); break; } }
     if (f) { ev.preventDefault(); setPhoto(f); return; }
-    var txt = cd.getData("text"); if (txt && /^https?:\/\//i.test(txt.trim())) { ev.preventDefault(); ev.target.value = txt.trim(); usePhotoUrl(txt); }
+    ev.preventDefault();
+    var html = cd.getData("text/html") || "", m = html.match(/<img[^>]+src="(https?:[^"]+)"/i), txt = (cd.getData("text") || "").trim();
+    if (m) usePhotoUrl(m[1].replace(/&amp;/g, "&"));
+    else if (/^https?:\/\//i.test(txt)) usePhotoUrl(txt);
+    else toast("Eso no es una imagen. Mantén pulsada la imagen en Safari y elige «Copiar».");
   });
-  document.addEventListener("keydown", function (ev) { if (ev.key === "Enter" && ev.target.id === "webUrl") usePhotoUrl(ev.target.value); });
   $("photoIn").addEventListener("change", function () { setPhoto(this.files && this.files[0]); });
   loadCache();
   loadRoutine();

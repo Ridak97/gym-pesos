@@ -1,6 +1,6 @@
 // Guarda la app en el iPhone para que funcione sin internet.
 // Cambia VERSION cada vez que actualices index.html.
-const VERSION = "pesos-v5";
+const VERSION = "pesos-v6";
 const PHOTOS = "pesos-fotos"; // fotos de internet: se conservan entre versiones
 const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png"];
 
